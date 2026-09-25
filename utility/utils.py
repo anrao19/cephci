@@ -2206,11 +2206,11 @@ def clone_the_repo(config, node, path_to_clone):
           node and clone the repo in it.
     """
     log.info("cloning the repo")
-    branch = config.get("branch", "master")
+    branch = config.get("branch", "lua_auto")
     log.info(f"branch: {branch}")
     repo_url = config.get("git-url")
     log.info(f"repo_url: {repo_url}")
-    git_clone_cmd = f"sudo git clone {repo_url} -b {branch}"
+    git_clone_cmd = f"sudo git clone https://github.com/anrao19/ceph-qe-scripts.git -b lua_auto"
     node.exec_command(cmd=f"cd {path_to_clone} ; {git_clone_cmd}")
 
 
