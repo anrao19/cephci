@@ -582,6 +582,9 @@ def _wait_for_osd_and_rgw_ready(node, timeout=600, interval=10):
     ``ceph orch restart osd.all-available-devices`` leaves OSDs down on 9.1.
     The next multisite user-create then hits ``(2200) Unknown error 2200``
     (failed to fetch master sync status) while those OSDs and PGs are still out.
+
+    OSD readiness uses the cluster OSD map (num_up_osds). Orch daemon
+    status_desc can lag after restart and is logged only.
     """
     end = time.time() + timeout
     last_msg = ""
@@ -604,9 +607,11 @@ def _wait_for_osd_and_rgw_ready(node, timeout=600, interval=10):
                 cmd="ceph orch ps --daemon_type osd --format json"
             )
             osds = json.loads(osd_ps_out) if str(osd_ps_out).strip() else []
-            osd_ready = bool(osds) and all(
-                d.get("status_desc") == "running" for d in osds
+            orch_osd_running = bool(osds) and all(
+                d.get("status_desc") == "running" or d.get("status") == 1
+                for d in osds
             )
+            osd_ready = total > 0 and up == total
             status_out, _ = node.exec_command(cmd="ceph status")
             status = status_out or ""
             pgs_down = any(
@@ -614,11 +619,11 @@ def _wait_for_osd_and_rgw_ready(node, timeout=600, interval=10):
                 for token in ("osds down", "osd down", "peering", "inactive")
             )
             last_msg = (
-                f"OSDs {up}/{total} up; orch osd running={osd_ready}; "
+                f"OSDs {up}/{total} up; orch osd running={orch_osd_running}; "
                 f"RGW running={rgw_ready}; pgs unavailable={pgs_down}"
             )
             log.info(last_msg)
-            if total > 0 and up == total and osd_ready and rgw_ready and not pgs_down:
+            if osd_ready and rgw_ready and not pgs_down:
                 if attempts > 1:
                     time.sleep(15)
                 log.info("OSDs and RGW recovered after config restart")
@@ -2363,11 +2368,11 @@ def clone_the_repo(config, node, path_to_clone):
           node and clone the repo in it.
     """
     log.info("cloning the repo")
-    branch = config.get("branch", "master")
+    branch = config.get("branch", "status_misleading")
     log.info(f"branch: {branch}")
     repo_url = config.get("git-url")
     log.info(f"repo_url: {repo_url}")
-    git_clone_cmd = f"sudo git clone {repo_url} -b {branch}"
+    git_clone_cmd = f"sudo git clone https://github.com/anrao19/ceph-qe-scripts.git -b status_misleading"
     node.exec_command(cmd=f"cd {path_to_clone} ; {git_clone_cmd}")
 
 
